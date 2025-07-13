@@ -9,9 +9,11 @@ import (
 )
 
 // BEncoding handles encoding and decoding of bencoded data.
-// TODO Only the minimal subset required for .torrent files is implemented for now.
+// TODO Only the minimal subset required for .torrent files is implemented for now
+
 type BEncoding struct{}
 
+//This is how the structs are encoded
 const (
     separator       = byte(':')
     integerStart    = byte('i')
@@ -20,8 +22,6 @@ const (
     objectEnd       = byte('e')
 )
 
-// decodeNumber parses an integer that starts after an 'i' and ends with 'e'.
-// It returns the integer value, the next read position, and an error if any.
 func (BEncoding) decodeNumber(buf []byte, pos int) (int, int, error) {
 	if pos >= len(buf) {
 		return 0, pos, io.ErrUnexpectedEOF
@@ -71,7 +71,6 @@ func (BEncoding) decodeNumber(buf []byte, pos int) (int, int, error) {
 
 
 // decodeString parses a byte string of the form "<len>:<data>".
-// It returns the decoded string, the next read position, and an error if any.
 func (BEncoding) decodeString(buf []byte, pos int) (string, int, error) {
     start := pos
     for pos < len(buf) && buf[pos] != separator {
@@ -98,7 +97,6 @@ func (BEncoding) decodeString(buf []byte, pos int) (string, int, error) {
     return string(buf[pos:end]), end, nil
 }
 
-// decodeDictionary parses a bencoded dictionary.
 func (b BEncoding) decodeDictionary(buf []byte, pos int) (map[string]any, int, error) {
     dict := make(map[string]any)
     head := pos
@@ -120,7 +118,6 @@ func (b BEncoding) decodeDictionary(buf []byte, pos int) (map[string]any, int, e
     return dict, head + 1, nil
 }
 
-// decodeList parses a bencoded list.
 func (b BEncoding) decodeList(buf []byte, pos int) ([]interface{}, int, error) {
     var list []interface{}
     head := pos
@@ -158,18 +155,30 @@ func (b BEncoding) decodeAny(buf []byte, pos int) (interface{}, int, error) {
     return nil, pos, errors.New("unknown type prefix")
 }
 
+
 // Decode decodes a raw bencoded buffer.
 // TODO: convert the result into a proper Torrent struct once Torrent is defined.
-func (b BEncoding) Decode(buf []byte) (Torrent, error) {
-    _, _, err := b.decodeAny(buf, 0)
-    return Torrent{}, err
+func (b BEncoding) Decode(buf []byte) (*Torrent, error) {
+    result, _, err := b.decodeAny(buf, 0)
+    
+    if err != nil {
+        return nil, err
+    }
+
+    t, err := NewTorrent(result)
+    
+    if err != nil {
+        return nil, err
+    }
+
+    return t, err
 }
 
 // DecodeFile reads a .torrent file and decodes its contents.
-func (b BEncoding) DecodeFile(path string) (Torrent, error) {
+func (b BEncoding) DecodeFile(path string) (*Torrent, error) {
     data, err := os.ReadFile(path)
     if err != nil {
-        return Torrent{}, err
+        return nil, err
     }
     return b.Decode(data)
 }
