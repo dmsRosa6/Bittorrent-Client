@@ -2,7 +2,6 @@ package bittorrent
 
 import "testing"
 
-
 func TestDecode(t *testing.T) {
 	data := []byte(`d8:announce33:http://192.168.1.74:6969/announce7:comment17:Comment goes here10:created by25:Transmission/2.92 (14714)13:creation datei1460444420e8:encoding5:UTF-84:infod6:lengthi59616e4:name9:lorem.txt12:piece lengthi32768e6:pieces20:ABCDEFGHIJKLMNOPQRST7:privatei0eeee`)
 	bencoding := BEncoding{}
@@ -26,7 +25,6 @@ func TestDecode(t *testing.T) {
 		BlockSize:    16 * 1024,
 	}
 
-	// Compare key fields since we can't compare entire struct (slices, etc)
 	if torrent.Announce != expected.Announce {
 		t.Errorf("Announce: got %q, want %q", torrent.Announce, expected.Announce)
 	}

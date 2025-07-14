@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// TODO here is collapsed the info map that comes in the decode method, i hope this does not comes back to bite me, i dont see NOW why it would maybe the ordering matters. Because of this i need to build the info map on the encode
 type Torrent struct {
 	Announce       string      // URL of the tracker to connect to
 	Name           string      // name of file or root directory
@@ -24,6 +25,11 @@ type Torrent struct {
 	IsBlockAcquired [][]bool   // matrix [piece][block]
 	downloaded     int       // total bytes downloaded
 	uploaded       int       // total bytes uploaded
+}
+
+//TODO
+func (t Torrent) ToBencodeMap() (map[string]interface{}, error){
+	return nil,nil
 }
 
 func NewTorrent(raw interface{}) (*Torrent, error) {

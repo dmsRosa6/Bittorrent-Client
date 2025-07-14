@@ -10,10 +10,9 @@ import (
 
 // BEncoding handles encoding and decoding of bencoded data.
 // TODO Only the minimal subset required for .torrent files is implemented for now
-
 type BEncoding struct{}
 
-//This is how the structs are encoded
+//This is how the structs are encoded and alligns with the protocol 
 const (
     separator       = byte(':')
     integerStart    = byte('i')
@@ -69,8 +68,7 @@ func (BEncoding) decodeNumber(buf []byte, pos int) (int, int, error) {
 	return n, pos + 1, nil
 }
 
-
-// decodeString parses a byte string of the form "<len>:<data>".
+//form "<len>:<data>".
 func (BEncoding) decodeString(buf []byte, pos int) (string, int, error) {
     start := pos
     for pos < len(buf) && buf[pos] != separator {
@@ -135,7 +133,6 @@ func (b BEncoding) decodeList(buf []byte, pos int) ([]interface{}, int, error) {
     return list, head + 1, nil
 }
 
-// decodeAny dispatches decoding based on the leading byte.
 func (b BEncoding) decodeAny(buf []byte, pos int) (interface{}, int, error) {
     if pos >= len(buf) {
         return nil, pos, io.ErrUnexpectedEOF
@@ -155,8 +152,6 @@ func (b BEncoding) decodeAny(buf []byte, pos int) (interface{}, int, error) {
     return nil, pos, errors.New("unknown type prefix")
 }
 
-
-// Decode decodes a raw bencoded buffer.
 // TODO: convert the result into a proper Torrent struct once Torrent is defined.
 func (b BEncoding) Decode(buf []byte) (*Torrent, error) {
     result, _, err := b.decodeAny(buf, 0)
@@ -174,21 +169,73 @@ func (b BEncoding) Decode(buf []byte) (*Torrent, error) {
     return t, err
 }
 
-// DecodeFile reads a .torrent file and decodes its contents.
 func (b BEncoding) DecodeFile(path string) (*Torrent, error) {
     data, err := os.ReadFile(path)
     if err != nil {
         return nil, err
     }
+
     return b.Decode(data)
 }
 
-// Encode is not implemented yet.
-func (BEncoding) Encode(_ Torrent) ([]byte, error) {
-    return nil, errors.New("encode not implemented yet")
+func (BEncoding) encodeNumber(val int) ([]byte,error) {
+    return nil, nil
 }
 
-// EncodeFile is not implemented yet.
-func (BEncoding) EncodeFile(_ string, _ Torrent) error {
-    return errors.New("encode file not implemented yet")
+func (BEncoding) encodeString(val string) ([]byte,error) {
+    return nil, nil
+}
+
+func (BEncoding) encodeList(val []interface{}) ([]byte,error) {
+    return nil, nil
+}
+
+func (BEncoding) encodeMap(val map[string]interface{}) ([]byte,error) {
+    return nil, nil
+}
+
+
+func (BEncoding) encodeAny(val map[string]interface{}) ([]byte,error) {
+ // first verify if its a map
+    return nil, nil
+}
+
+func (b BEncoding) Encode(t Torrent) ([]byte, error) {
+    raw, err := t.ToBencodeMap()
+
+    if err != nil {
+        return nil, err
+    }
+
+    encoded, err := b.encodeAny(raw)
+
+    if err != nil {
+        return nil, err
+    }
+
+    return encoded, nil
+}
+
+func (b BEncoding) EncodeFile(name string, t Torrent) error {
+    raw, err := b.Encode(t)
+
+    if err != nil {
+        return err
+    }
+    
+    file, err := os.Create(name)
+
+    if err != nil {
+        return err
+    }
+    defer file.Close()
+
+    // TODO here i can log how many files i wrote or smth
+    _, err = file.Write(raw)
+
+    if err != nil {
+        return err
+    }
+
+    return nil
 }
