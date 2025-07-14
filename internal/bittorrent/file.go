@@ -2,11 +2,11 @@ package bittorrent
 
 type FileItem struct{
 	Path string
-	Size int64
-	Offset int64
+	Size int
+	Offset int
 }
 
-func (f *FileItem) New(path string, size int64, offset int64) FileItem {
+func (f *FileItem) New(path string, size int, offset int) FileItem {
 	return FileItem{Path: path, Size: size, Offset: offset}
 }
 
@@ -14,11 +14,11 @@ func (f *FileItem) GetPath() string {
 	return f.Path
 }
 
-func (f *FileItem) GetSize() int64 {
+func (f *FileItem) GetSize() int {
 	return f.Size
 }
 
-func (f *FileItem) GetOffset() int64 {
+func (f *FileItem) GetOffset() int {
 	return f.Offset
 }
 

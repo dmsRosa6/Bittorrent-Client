@@ -1,0 +1,80 @@
+package bittorrent
+
+import "testing"
+
+
+func TestDecode(t *testing.T) {
+	data := []byte(`d8:announce33:http://192.168.1.74:6969/announce7:comment17:Comment goes here10:created by25:Transmission/2.92 (14714)13:creation datei1460444420e8:encoding5:UTF-84:infod6:lengthi59616e4:name9:lorem.txt12:piece lengthi32768e6:pieces20:ABCDEFGHIJKLMNOPQRST7:privatei0eeee`)
+	bencoding := BEncoding{}
+	
+	torrent, err := bencoding.Decode(data)
+	if err != nil {
+		t.Fatalf("Decode failed: %v", err)
+	}
+
+	expected := &Torrent{
+		Announce:     "http://192.168.1.74:6969/announce",
+		Comment:      "Comment goes here",
+		CreatedBy:    "Transmission/2.92 (14714)",
+		CreationDate: 1460444420,
+		Encoding:     "UTF-8",
+		Name:         "lorem.txt",
+		PieceSize:    32768,
+		PieceHashes:  [][]byte{[]byte("ABCDEFGHIJKLMNOPQRST")},
+		IsPrivate:    false,
+		Files:        []FileItem{{Size: 59616, Path: "lorem.txt"}},
+		BlockSize:    16 * 1024,
+	}
+
+	// Compare key fields since we can't compare entire struct (slices, etc)
+	if torrent.Announce != expected.Announce {
+		t.Errorf("Announce: got %q, want %q", torrent.Announce, expected.Announce)
+	}
+	if torrent.Comment != expected.Comment {
+		t.Errorf("Comment: got %q, want %q", torrent.Comment, expected.Comment)
+	}
+	if torrent.CreatedBy != expected.CreatedBy {
+		t.Errorf("CreatedBy: got %q, want %q", torrent.CreatedBy, expected.CreatedBy)
+	}
+	if torrent.CreationDate != expected.CreationDate {
+		t.Errorf("CreationDate: got %d, want %d", torrent.CreationDate, expected.CreationDate)
+	}
+	if torrent.Encoding != expected.Encoding {
+		t.Errorf("Encoding: got %q, want %q", torrent.Encoding, expected.Encoding)
+	}
+	if torrent.Name != expected.Name {
+		t.Errorf("Name: got %q, want %q", torrent.Name, expected.Name)
+	}
+	if torrent.PieceSize != expected.PieceSize {
+		t.Errorf("PieceSize: got %d, want %d", torrent.PieceSize, expected.PieceSize)
+	}
+	if torrent.IsPrivate != expected.IsPrivate {
+		t.Errorf("IsPrivate: got %v, want %v", torrent.IsPrivate, expected.IsPrivate)
+	}
+	if torrent.BlockSize != expected.BlockSize {
+		t.Errorf("BlockSize: got %d, want %d", torrent.BlockSize, expected.BlockSize)
+	}
+	
+	if len(torrent.PieceHashes) != len(expected.PieceHashes) {
+		t.Errorf("PieceHashes length: got %d, want %d", len(torrent.PieceHashes), len(expected.PieceHashes))
+	} else {
+		for i, hash := range torrent.PieceHashes {
+			if string(hash) != string(expected.PieceHashes[i]) {
+				t.Errorf("PieceHash[%d]: got %x, want %x", i, hash, expected.PieceHashes[i])
+			}
+		}
+	}
+	
+	if len(torrent.Files) != len(expected.Files) {
+		t.Errorf("Files length: got %d, want %d", len(torrent.Files), len(expected.Files))
+	} else {
+		for i, file := range torrent.Files {
+			if file.Size != expected.Files[i].Size {
+				t.Errorf("Files[%d].Size: got %d, want %d", i, file.Size, expected.Files[i].Size)
+			}
+			if file.Path != expected.Files[i].Path {
+				t.Errorf("Files[%d].Path: got %q, want %q", i, file.Path, expected.Files[i].Path)
+			}
+		}
+	}
+}
