@@ -1,9 +1,12 @@
 package bittorrent
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+)
 
 func TestDecode(t *testing.T) {
-	data := []byte(`d8:announce33:http://192.168.1.74:6969/announce7:comment17:Comment goes here10:created by25:Transmission/2.92 (14714)13:creation datei1460444420e8:encoding5:UTF-84:infod6:lengthi59616e4:name9:lorem.txt12:piece lengthi32768e6:pieces20:ABCDEFGHIJKLMNOPQRST7:privatei0eeee`)
+	data := []byte(`d8:announce33:http://192.168.1.74:6969/announce7:comment17:Comment goes here10:created by25:Transmission/2.92 (14714)13:creation datei1460444420e8:encoding5:UTF-84:infod6:lengthi59616e4:name9:lorem.txt12:piece lengthi32768e6:pieces20:ABCDEFGHIJKLMNOPQRST7:privatei0eee`)
 	bencoding := BEncoding{}
 	
 	torrent, err := bencoding.Decode(data)
@@ -75,4 +78,61 @@ func TestDecode(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestEncode(t *testing.T){
+	in := &Torrent{
+		Announce:     "http://192.168.1.74:6969/announce",
+		Comment:      "Comment goes here",
+		CreatedBy:    "Transmission/2.92 (14714)",
+		CreationDate: 1460444420,
+		Encoding:     "UTF-8",
+		Name:         "lorem.txt",
+		PieceSize:    32768,
+		PieceHashes:  [][]byte{[]byte("ABCDEFGHIJKLMNOPQRST")},
+		IsPrivate:    false,
+		Files:        []FileItem{{Size: 59616, Path: "lorem.txt"}},
+		BlockSize:    16 * 1024,
+	}
+
+	expected := []byte(`d8:announce33:http://192.168.1.74:6969/announce7:comment17:Comment goes here10:created by25:Transmission/2.92 (14714)13:creation datei1460444420e8:encoding5:UTF-84:infod6:lengthi59616e4:name9:lorem.txt12:piece lengthi32768e6:pieces20:ABCDEFGHIJKLMNOPQRST7:privatei0eee`)
+	
+	bencoding := BEncoding{}
+
+	raw, err := bencoding.Encode(*in)
+
+	if err != nil {
+		t.Fatalf("Encode failed: %v", err)
+	}
+
+	if len(raw) != len(expected) {
+		t.Errorf("Encode does not match. Different len. expected : %d, got : %d", len(expected), len(raw))
+		return
+	}
+
+	for i, b := range(expected) {
+		if b != raw[i] {
+			t.Errorf("Encode does not match. expected: %s, got: %s", string(b), string(raw[i]))
+		} 
+	}
+}
+
+func TestDecodeThenEncode(t *testing.T) {
+    originalData := []byte(`d8:announce33:http://192.168.1.74:6969/announce7:comment17:Comment goes here10:created by25:Transmission/2.92 (14714)13:creation datei1460444420e8:encoding5:UTF-84:infod6:lengthi59616e4:name9:lorem.txt12:piece lengthi32768e6:pieces20:ABCDEFGHIJKLMNOPQRST7:privatei0eee`)
+
+    bencoding := BEncoding{}
+
+    torrent, err := bencoding.Decode(originalData)
+    if err != nil {
+        t.Fatalf("Decode failed: %v", err)
+    }
+
+    encoded, err := bencoding.Encode(*torrent)
+    if err != nil {
+        t.Fatalf("Encode failed: %v", err)
+    }
+
+    if !bytes.Equal(encoded, originalData) {
+        t.Errorf("Decode->Encode mismatch\nExpected: %s\nGot:      %s", string(originalData), string(encoded))
+    }
 }

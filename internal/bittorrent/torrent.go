@@ -27,12 +27,92 @@ type Torrent struct {
 	uploaded       int       // total bytes uploaded
 }
 
-//TODO
-func (t Torrent) ToBencodeMap() (map[string]interface{}, error){
-	return nil,nil
+//TODO review this
+// ToBencodeMap serializes the Torrent back into the nested map[string]any
+// structure expected by your BEncoding.Encode method.
+func (t Torrent) ToBencodeMap() (map[string]any, error) {
+    top := make(map[string]any)
+
+    // required
+    top["announce"] = t.Announce
+
+    // optional top‐level
+    if len(t.AnnounceList) > 0 {
+        // encode announce-list as []any of []any of string
+        al := make([]any, len(t.AnnounceList))
+        for i, tier := range t.AnnounceList {
+            urls := make([]any, len(tier))
+            for j, u := range tier {
+                urls[j] = u
+            }
+            al[i] = urls
+        }
+        top["announce‐list"] = al
+    }
+    if t.Comment != "" {
+        top["comment"] = t.Comment
+    }
+    if t.CreatedBy != "" {
+        top["created by"] = t.CreatedBy
+    }
+    if t.CreationDate != 0 {
+        top["creation date"] = t.CreationDate
+    }
+    if t.Encoding != "" {
+        top["encoding"] = t.Encoding
+    }
+
+    // build info dict
+    info := make(map[string]any, 6)
+
+    // name is required
+    info["name"] = t.Name
+    // piece length required
+    info["piece length"] = t.PieceSize
+    // pieces: concat all SHA-1 hashes into one string
+    concat := make([]byte, 0, len(t.PieceHashes)*20)
+    for _, h := range t.PieceHashes {
+        if len(h) != 20 {
+            return nil, fmt.Errorf("invalid piece hash length %d, want 20", len(h))
+        }
+        concat = append(concat, h...)
+    }
+    info["pieces"] = string(concat)
+
+	
+	if t.IsPrivate {
+		info["private"] = 1
+	}else{	
+		info["private"] = 0
+	}
+	
+    // files vs single‐file
+    if len(t.Files) == 1 && t.Files[0].Path == t.Name {
+        // single‐file mode: just length
+        info["length"] = t.Files[0].Size
+    } else {
+        // multi‐file mode: list of dicts with length + path slice
+        fl := make([]any, len(t.Files))
+        for i, f := range t.Files {
+            m := make(map[string]any, 2)
+            m["length"] = f.Size
+            // split the "/"‐joined Path back into components
+            parts := strings.Split(f.Path, "/")
+            pa := make([]any, len(parts))
+            for j, p := range parts {
+                pa[j] = p
+            }
+            m["path"] = pa
+            fl[i] = m
+        }
+        info["files"] = fl
+    }
+
+    top["info"] = info
+    return top, nil
 }
 
-func NewTorrent(raw interface{}) (*Torrent, error) {
+func NewTorrent(raw any) (*Torrent, error) {
 	dic, ok := raw.(map[string]any)
 	if !ok {
 		return nil, errors.New("top level must be a dictionary")

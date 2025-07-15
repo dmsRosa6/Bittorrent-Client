@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strconv"
 )
 
@@ -116,8 +117,8 @@ func (b BEncoding) decodeDictionary(buf []byte, pos int) (map[string]any, int, e
     return dict, head + 1, nil
 }
 
-func (b BEncoding) decodeList(buf []byte, pos int) ([]interface{}, int, error) {
-    var list []interface{}
+func (b BEncoding) decodeList(buf []byte, pos int) ([]any, int, error) {
+    var list []any
     head := pos
     for head < len(buf) && buf[head] != objectEnd {
         val, next, err := b.decodeAny(buf, head)
@@ -133,7 +134,7 @@ func (b BEncoding) decodeList(buf []byte, pos int) ([]interface{}, int, error) {
     return list, head + 1, nil
 }
 
-func (b BEncoding) decodeAny(buf []byte, pos int) (interface{}, int, error) {
+func (b BEncoding) decodeAny(buf []byte, pos int) (any, int, error) {
     if pos >= len(buf) {
         return nil, pos, io.ErrUnexpectedEOF
     }
@@ -178,26 +179,90 @@ func (b BEncoding) DecodeFile(path string) (*Torrent, error) {
     return b.Decode(data)
 }
 
-func (BEncoding) encodeNumber(val int) ([]byte,error) {
-    return nil, nil
+// TODO Encode can have errors to so we need to check them
+// POSITIVE NUMBERS ONLY AND ZEROS
+// TYPES MISMATCH: INTERFACE CONVERTS ETC ...
+
+func (BEncoding) encodeNumber(val int) []byte {
+
+    s := string(integerStart) + strconv.Itoa(val) + string(objectEnd)
+    buf := []byte(s)
+
+	return buf
 }
 
-func (BEncoding) encodeString(val string) ([]byte,error) {
-    return nil, nil
+func (BEncoding) encodeString(val string) []byte {
+
+	s := strconv.Itoa(len(val)) + string(separator) + val
+    buf := []byte(s)
+
+	return buf
 }
 
-func (BEncoding) encodeList(val []interface{}) ([]byte,error) {
-    return nil, nil
+func (b BEncoding) encodeList(l []any) []byte {
+
+    buf := []byte{listStart}
+   
+    for _, item := range l {
+        val := b.encodeAny(item)
+		buf = append(buf, val...)
+        buf = append(buf, separator)
+    }
+    
+    buf[len(buf)-1] = objectEnd
+
+    return buf
 }
 
-func (BEncoding) encodeMap(val map[string]interface{}) ([]byte,error) {
-    return nil, nil
+// Important reminder, the dic have lexicographic order
+func (b BEncoding) encodeDictionary(m map[string]any) []byte {
+    buf := []byte{dictionaryStart}
+
+    keys := make([]string, 0, len(m))
+    for k := range m {
+        keys = append(keys, k)
+    }
+
+    sort.Strings(keys)
+
+    for _, k := range keys {
+        key := b.encodeString(k)
+        val := b.encodeAny(m[k])
+        buf = append(buf, key...)
+        buf = append(buf, val...)
+    }
+
+    buf = append(buf, objectEnd)
+    return buf
 }
 
 
-func (BEncoding) encodeAny(val map[string]interface{}) ([]byte,error) {
- // first verify if its a map
-    return nil, nil
+func (b BEncoding)encodeAny(val any) []byte {
+
+    switch v := val.(type) {
+
+    case int:
+
+        return b.encodeNumber(v)
+
+    case string:
+
+        return b.encodeString(v)
+
+	case []any:
+
+		return b.encodeList(v)
+
+    case map[string]any:
+
+        return b.encodeDictionary(v)
+
+    default:
+
+        return nil
+
+    }
+
 }
 
 func (b BEncoding) Encode(t Torrent) ([]byte, error) {
@@ -207,11 +272,7 @@ func (b BEncoding) Encode(t Torrent) ([]byte, error) {
         return nil, err
     }
 
-    encoded, err := b.encodeAny(raw)
-
-    if err != nil {
-        return nil, err
-    }
+    encoded := b.encodeAny(raw)
 
     return encoded, nil
 }
