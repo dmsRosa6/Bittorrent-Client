@@ -297,6 +297,14 @@ func (t *Torrent) IsCompleted() bool {
 	return true
 }
 
+func (t *Torrent) FileDir() string {
+	if len(t.Files) > 1 {
+		return t.Name + "/"
+	}
+
+	return ""
+}
+
 func (t *Torrent) Uploaded() int {
 	return t.uploaded
 }
