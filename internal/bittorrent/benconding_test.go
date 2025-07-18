@@ -29,52 +29,53 @@ func TestDecode(t *testing.T) {
 	}
 
 	if torrent.Announce != expected.Announce {
-		t.Errorf("Announce: got %q, want %q", torrent.Announce, expected.Announce)
+		t.Errorf("announce: got %q, want %q", torrent.Announce, expected.Announce)
 	}
 	if torrent.Comment != expected.Comment {
-		t.Errorf("Comment: got %q, want %q", torrent.Comment, expected.Comment)
+		t.Errorf("comment: got %q, want %q", torrent.Comment, expected.Comment)
 	}
 	if torrent.CreatedBy != expected.CreatedBy {
-		t.Errorf("CreatedBy: got %q, want %q", torrent.CreatedBy, expected.CreatedBy)
+		t.Errorf("createdBy: got %q, want %q", torrent.CreatedBy, expected.CreatedBy)
 	}
 	if torrent.CreationDate != expected.CreationDate {
-		t.Errorf("CreationDate: got %d, want %d", torrent.CreationDate, expected.CreationDate)
+		t.Errorf("creationDate: got %d, want %d", torrent.CreationDate, expected.CreationDate)
 	}
 	if torrent.Encoding != expected.Encoding {
-		t.Errorf("Encoding: got %q, want %q", torrent.Encoding, expected.Encoding)
+		t.Errorf("encoding: got %q, want %q", torrent.Encoding, expected.Encoding)
 	}
 	if torrent.Name != expected.Name {
-		t.Errorf("Name: got %q, want %q", torrent.Name, expected.Name)
+		t.Errorf("name: got %q, want %q", torrent.Name, expected.Name)
 	}
 	if torrent.PieceSize != expected.PieceSize {
-		t.Errorf("PieceSize: got %d, want %d", torrent.PieceSize, expected.PieceSize)
+		t.Errorf("pieceSize: got %d, want %d", torrent.PieceSize, expected.PieceSize)
 	}
 	if torrent.IsPrivate != expected.IsPrivate {
-		t.Errorf("IsPrivate: got %v, want %v", torrent.IsPrivate, expected.IsPrivate)
+		t.Errorf("isPrivate: got %v, want %v", torrent.IsPrivate, expected.IsPrivate)
 	}
 	if torrent.BlockSize != expected.BlockSize {
-		t.Errorf("BlockSize: got %d, want %d", torrent.BlockSize, expected.BlockSize)
+		t.Errorf("blockSize: got %d, want %d", torrent.BlockSize, expected.BlockSize)
 	}
 	
 	if len(torrent.PieceHashes) != len(expected.PieceHashes) {
-		t.Errorf("PieceHashes length: got %d, want %d", len(torrent.PieceHashes), len(expected.PieceHashes))
+		t.Errorf("pieceHashes length: got %d, want %d", len(torrent.PieceHashes), len(expected.PieceHashes))
 	} else {
 		for i, hash := range torrent.PieceHashes {
 			if string(hash) != string(expected.PieceHashes[i]) {
-				t.Errorf("PieceHash[%d]: got %x, want %x", i, hash, expected.PieceHashes[i])
+				t.Errorf("pieceHash[%d]: got %x, want %x", i, hash, expected.PieceHashes[i])
 			}
 		}
 	}
 	
 	if len(torrent.Files) != len(expected.Files) {
-		t.Errorf("Files length: got %d, want %d", len(torrent.Files), len(expected.Files))
+		t.Errorf("files length: got %d, want %d", len(torrent.Files), len(expected.Files))
 	} else {
-		for i, file := range torrent.Files {
-			if file.Size != expected.Files[i].Size {
-				t.Errorf("Files[%d].Size: got %d, want %d", i, file.Size, expected.Files[i].Size)
+		for i := range torrent.Files {
+			fileItem := &torrent.Files[i]
+			if fileItem.Size != expected.Files[i].Size {
+				t.Errorf("files[%d]. size: got %d, want %d", i, fileItem.Size, expected.Files[i].Size)
 			}
-			if file.Path != expected.Files[i].Path {
-				t.Errorf("Files[%d].Path: got %q, want %q", i, file.Path, expected.Files[i].Path)
+			if fileItem.Path != expected.Files[i].Path {
+				t.Errorf("files[%d]. path: got %q, want %q", i, fileItem.Path, expected.Files[i].Path)
 			}
 		}
 	}

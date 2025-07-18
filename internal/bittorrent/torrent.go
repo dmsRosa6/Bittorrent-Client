@@ -329,3 +329,14 @@ func bytesToString(val int) string {
 	}
 	return fmt.Sprintf("%.1f %ciB", float64(val)/float64(div), "KMGTPE"[exp])
 }
+
+func (t Torrent) GetPieceSize(piece int) int {            
+    if piece == t.PiecesCount() - 1 { 
+        remainder := int(t.TotalSize() % t.PieceSize)
+        if (remainder != 0){
+			return remainder
+		}
+    }
+
+    return t.PieceSize
+}
