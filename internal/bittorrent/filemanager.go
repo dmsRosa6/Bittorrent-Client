@@ -8,10 +8,10 @@ import (
 )
 
 type FileManager struct {
-	torrent Torrent
+	torrent *Torrent
 }
 
-func (fm FileManager) Read(start int64, length int) ([]byte, error) {
+func (fm *FileManager) Read(start int64, length int) ([]byte, error) {
 	end := start + int64(length)
 	buf := make([]byte, length)
 	written := 0
@@ -141,7 +141,7 @@ func (fm *FileManager) Write(start int64, buf []byte) error {
 	return nil
 } 
 
-func (fm FileManager) ReadPiece(piece int) ([]byte, error) {
+func (fm *FileManager) ReadPiece(piece int) ([]byte, error) {
 	raw, err := fm.Read(int64(fm.torrent.PieceSize) * int64(piece), fm.torrent.GetPieceSize(piece))
 	
 	if err != nil {
@@ -151,7 +151,7 @@ func (fm FileManager) ReadPiece(piece int) ([]byte, error) {
 	return raw, nil
 }
 
-func (fm FileManager) ReadBlock(piece int, offset int, length int) ([]byte, error) {
+func (fm *FileManager) ReadBlock(piece int, offset int, length int) ([]byte, error) {
 	raw, err := fm.Read(int64(fm.torrent.PieceSize) * int64(piece) + int64(offset), length)
 	
 	if err != nil {
@@ -161,7 +161,7 @@ func (fm FileManager) ReadBlock(piece int, offset int, length int) ([]byte, erro
 	return raw, nil
 }
 
-func (fm FileManager) WriteBlock(piece int, block int, buf []byte) error {
+func (fm *FileManager) WriteBlock(piece int, block int, buf []byte) error {
 	err := fm.Write(int64(fm.torrent.PieceSize) * int64(piece) + int64(block) * int64(fm.torrent.BlockSize), buf)
 	
 	if err != nil {
