@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 )
@@ -278,25 +280,47 @@ func (b BEncoding) Encode(t Torrent) ([]byte, error) {
 }
 
 func (b BEncoding) EncodeFile(name string, t Torrent) error {
-    raw, err := b.Encode(t)
+	raw, err := b.Encode(t)
+	if err != nil {
+		return err
+	}
 
-    if err != nil {
-        return err
-    }
-    
-    file, err := os.Create(name)
+	err = safeWriteFile(name, raw)
+	if err != nil {
+		return err
+	}
 
-    if err != nil {
-        return err
-    }
-    defer file.Close()
+	return nil
+}
 
-    // TODO here i can log how many files i wrote or smth
-    _, err = file.Write(raw)
+func safeWriteFile(filename string, data []byte) error {
+	dir := filepath.Dir(filename)
+	tempFile, err := ioutil.TempFile(dir, "tmp-torrent-")
+	if err != nil {
+		return err
+	}
 
-    if err != nil {
-        return err
-    }
+	tempName := tempFile.Name()
 
-    return nil
+	defer func() {
+		tempFile.Close()
+		os.Remove(tempName)
+	}()
+
+	_, err = tempFile.Write(data)
+	if err != nil {
+		return err
+	}
+
+	err = tempFile.Sync()
+	if err != nil {
+		return err
+	}
+
+	err = tempFile.Close()
+	if err != nil {
+		return err
+	}
+
+	return os.Rename(tempName, filename)
 }
