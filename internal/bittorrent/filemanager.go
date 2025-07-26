@@ -7,6 +7,7 @@ import (
 	"os"
 )
 
+
 type FileManager struct {
 	torrent *Torrent
 }
@@ -34,7 +35,7 @@ func (fm *FileManager) Read(start int64, length int) ([]byte, error) {
 		}
 
 		if !exists {
-			return nil, fmt.Errorf("File does not exist. path: %s", path)
+			return nil, fmt.Errorf("file does not exist. path: %s", path)
 		}
 
 

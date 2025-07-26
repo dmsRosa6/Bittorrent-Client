@@ -94,11 +94,11 @@ func (t Torrent) ToBencodeMap() (map[string]any, error) {
     } else {
         // multi‐file mode: list of dicts with length + path slice
         fl := make([]any, len(t.Files))
-        for i, f := range t.Files {
+        for i := range t.Files {
             m := make(map[string]any, 2)
-            m["length"] = f.Size
+            m["length"] = t.Files[i].Size
             // split the "/"‐joined Path back into components
-            parts := strings.Split(f.Path, "/")
+            parts := strings.Split(t.Files[i].Path, "/")
             pa := make([]any, len(parts))
             for j, p := range parts {
                 pa[j] = p
@@ -267,8 +267,8 @@ func NewTorrent(raw any) (*Torrent, error) {
 
 func (t *Torrent) TotalSize() int {
 	var size int
-	for _, f := range t.Files {
-		size += f.Size
+	for i := range t.Files {
+		size += t.Files[i].Size
 	}
 	return size
 }
@@ -344,4 +344,5 @@ func (t Torrent) GetPieceSize(piece int) int {
 
 func (t Torrent) GetTotalPieces() int {
 	return int(math.Ceil(float64(t.TotalSize()) / float64(t.PieceSize)))
+
 }
