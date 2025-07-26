@@ -3,6 +3,7 @@ package bittorrent
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 )
 
@@ -339,4 +340,8 @@ func (t Torrent) GetPieceSize(piece int) int {
     }
 
     return t.PieceSize
+}
+
+func (t Torrent) GetTotalPieces() int {
+	return int(math.Ceil(float64(t.TotalSize()) / float64(t.PieceSize)))
 }
