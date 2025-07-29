@@ -1,6 +1,7 @@
 package bittorrent
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -9,108 +10,106 @@ import (
 
 // TODO here is collapsed the info map that comes in the decode method, i hope this does not comes back to bite me, i dont see NOW why it would maybe the ordering matters. Because of this i need to build the info map on the encode
 type Torrent struct {
-	Announce       string      // URL of the tracker to connect to
-	Name           string      // name of file or root directory
-	IsPrivate      bool        // if true, peer exchange and DHT are disabled
-	Files          []FileItem  // list of files
-	AnnounceList   [][]string  // Additional trackers
-	Comment        string      // human-readable comment
-	Encoding       string      // what is used for encoding (top-level field)
-	CreatedBy      string      // client that created the .torrent
-	CreationDate   int       // when the .torrent was created
-	DownloadDir    string      // local path where files will be saved
-	BlockSize      int         // size of each block unit (e.g., 16 KiB)
-	PieceSize      int         // size of each piece
-	PieceHashes    [][]byte    // SHA-1 hashes for each piece
+	Announce        string     // URL of the tracker to connect to
+	Name            string     // name of file or root directory
+	IsPrivate       bool       // if true, peer exchange and DHT are disabled
+	Files           []FileItem // list of files
+	AnnounceList    [][]string // Additional trackers
+	Comment         string     // human-readable comment
+	Encoding        string     // what is used for encoding (top-level field)
+	CreatedBy       string     // client that created the .torrent
+	CreationDate    int        // when the .torrent was created
+	DownloadDir     string     // local path where files will be saved
+	BlockSize       int        // size of each block unit (e.g., 16 KiB)
+	PieceSize       int        // size of each piece
+	PieceHashes     [][]byte   // SHA-1 hashes for each piece
 	IsPieceVerified []bool     // one per piece
 	IsBlockAcquired [][]bool   // matrix [piece][block]
-	downloaded     int       // total bytes downloaded
-	uploaded       int       // total bytes uploaded
+	downloaded      int        // total bytes downloaded
+	uploaded        int        // total bytes uploaded
+	infoHash        []byte
 }
 
-//TODO review this
+// TODO review this
 // ToBencodeMap serializes the Torrent back into the nested map[string]any
 // structure expected by your BEncoding.Encode method.
 func (t Torrent) ToBencodeMap() (map[string]any, error) {
-    top := make(map[string]any)
+	top := make(map[string]any)
 
-    // required
-    top["announce"] = t.Announce
+	// required
+	top["announce"] = t.Announce
 
-    // optional top‐level
-    if len(t.AnnounceList) > 0 {
-        // encode announce-list as []any of []any of string
-        al := make([]any, len(t.AnnounceList))
-        for i, tier := range t.AnnounceList {
-            urls := make([]any, len(tier))
-            for j, u := range tier {
-                urls[j] = u
-            }
-            al[i] = urls
-        }
-        top["announce‐list"] = al
-    }
-    if t.Comment != "" {
-        top["comment"] = t.Comment
-    }
-    if t.CreatedBy != "" {
-        top["created by"] = t.CreatedBy
-    }
-    if t.CreationDate != 0 {
-        top["creation date"] = t.CreationDate
-    }
-    if t.Encoding != "" {
-        top["encoding"] = t.Encoding
-    }
+	// optional top‐level
+	if len(t.AnnounceList) > 0 {
+		// encode announce-list as []any of []any of string
+		al := make([]any, len(t.AnnounceList))
+		for i, tier := range t.AnnounceList {
+			urls := make([]any, len(tier))
+			for j, u := range tier {
+				urls[j] = u
+			}
+			al[i] = urls
+		}
+		top["announce‐list"] = al
+	}
+	if t.Comment != "" {
+		top["comment"] = t.Comment
+	}
+	if t.CreatedBy != "" {
+		top["created by"] = t.CreatedBy
+	}
+	if t.CreationDate != 0 {
+		top["creation date"] = t.CreationDate
+	}
+	if t.Encoding != "" {
+		top["encoding"] = t.Encoding
+	}
 
-    // build info dict
-    info := make(map[string]any, 6)
+	// build info dict
+	info := make(map[string]any, 6)
 
-    // name is required
-    info["name"] = t.Name
-    // piece length required
-    info["piece length"] = t.PieceSize
-    // pieces: concat all SHA-1 hashes into one string
-    concat := make([]byte, 0, len(t.PieceHashes)*20)
-    for _, h := range t.PieceHashes {
-        if len(h) != 20 {
-            return nil, fmt.Errorf("invalid piece hash length %d, want 20", len(h))
-        }
-        concat = append(concat, h...)
-    }
-    info["pieces"] = string(concat)
+	info["name"] = t.Name
+	info["piece length"] = t.PieceSize
+	// pieces: concat all SHA-1 hashes into one string
+	concat := make([]byte, 0, len(t.PieceHashes)*20)
+	for _, h := range t.PieceHashes {
+		if len(h) != 20 {
+			return nil, fmt.Errorf("invalid piece hash length %d, want 20", len(h))
+		}
+		concat = append(concat, h...)
+	}
+	info["pieces"] = string(concat)
 
-	
 	if t.IsPrivate {
 		info["private"] = 1
-	}else{	
+	} else {
 		info["private"] = 0
 	}
-	
-    // files vs single‐file
-    if len(t.Files) == 1 && t.Files[0].Path == t.Name {
-        // single‐file mode: just length
-        info["length"] = t.Files[0].Size
-    } else {
-        // multi‐file mode: list of dicts with length + path slice
-        fl := make([]any, len(t.Files))
-        for i := range t.Files {
-            m := make(map[string]any, 2)
-            m["length"] = t.Files[i].Size
-            // split the "/"‐joined Path back into components
-            parts := strings.Split(t.Files[i].Path, "/")
-            pa := make([]any, len(parts))
-            for j, p := range parts {
-                pa[j] = p
-            }
-            m["path"] = pa
-            fl[i] = m
-        }
-        info["files"] = fl
-    }
 
-    top["info"] = info
-    return top, nil
+	// files vs single‐file
+	if len(t.Files) == 1 && t.Files[0].Path == t.Name {
+		// single‐file mode: just length
+		info["length"] = t.Files[0].Size
+	} else {
+		// multi‐file mode: list of dicts with length + path slice
+		fl := make([]any, len(t.Files))
+		for i := range t.Files {
+			m := make(map[string]any, 2)
+			m["length"] = t.Files[i].Size
+			// split the "/"‐joined Path back into components
+			parts := strings.Split(t.Files[i].Path, "/")
+			pa := make([]any, len(parts))
+			for j, p := range parts {
+				pa[j] = p
+			}
+			m["path"] = pa
+			fl[i] = m
+		}
+		info["files"] = fl
+	}
+
+	top["info"] = info
+	return top, nil
 }
 
 func NewTorrent(raw any) (*Torrent, error) {
@@ -120,11 +119,10 @@ func NewTorrent(raw any) (*Torrent, error) {
 	}
 
 	t := Torrent{
-		BlockSize: 16 * 1024, // Default block size: 16 KiB
-		Encoding:  "UTF-8",   // Default encoding
+		BlockSize: 16 * 1024, // Default
+		Encoding:  "UTF-8",   // Default
 	}
 
-	// Required top-level fields
 	if announce, ok := dic["announce"].(string); ok {
 		t.Announce = announce
 	} else {
@@ -157,7 +155,9 @@ func NewTorrent(raw any) (*Torrent, error) {
 	} else {
 		return nil, errors.New("name missing or not a string")
 	}
+
 	fmt.Print(infoDict["piece length"])
+
 	if pieceLength, ok := infoDict["piece length"].(int); ok {
 		t.PieceSize = int(pieceLength)
 	} else {
@@ -241,7 +241,7 @@ func NewTorrent(raw any) (*Torrent, error) {
 	numPieces := len(t.PieceHashes)
 	t.IsPieceVerified = make([]bool, numPieces)
 	t.IsBlockAcquired = make([][]bool, numPieces)
-	
+
 	for i := 0; i < numPieces; i++ {
 		pieceStart := int(i) * int(t.PieceSize)
 		pieceEnd := pieceStart + int(t.PieceSize)
@@ -262,7 +262,26 @@ func NewTorrent(raw any) (*Torrent, error) {
 		t.IsBlockAcquired[i] = make([]bool, numBlocks)
 	}
 
+	t.infoHash = make([]byte, 20)
+
 	return &t, nil
+}
+
+func (t *Torrent) HexStringInfohash() string {
+	return hex.EncodeToString(t.infoHash)
+}
+
+func (t *Torrent) UrlSafeStringInfohash() string {
+	encoded := ""
+	for _, b := range t.infoHash[:20] {
+		encoded += fmt.Sprintf("%%%02X", b)
+	}
+
+	return encoded
+}
+
+func (t *Torrent) InfoHash() []byte {
+	return t.infoHash
 }
 
 func (t *Torrent) TotalSize() int {
@@ -331,15 +350,15 @@ func bytesToString(val int) string {
 	return fmt.Sprintf("%.1f %ciB", float64(val)/float64(div), "KMGTPE"[exp])
 }
 
-func (t Torrent) GetPieceSize(piece int) int {            
-    if piece == t.PiecesCount() - 1 { 
-        remainder := int(t.TotalSize() % t.PieceSize)
-        if (remainder != 0){
+func (t Torrent) GetPieceSize(piece int) int {
+	if piece == t.PiecesCount()-1 {
+		remainder := int(t.TotalSize() % t.PieceSize)
+		if remainder != 0 {
 			return remainder
 		}
-    }
+	}
 
-    return t.PieceSize
+	return t.PieceSize
 }
 
 func (t Torrent) GetTotalPieces() int {
