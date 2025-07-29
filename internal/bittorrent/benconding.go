@@ -15,13 +15,13 @@ import (
 // TODO Only the minimal subset required for .torrent files is implemented for now
 type BEncoding struct{}
 
-//This is how the structs are encoded and alligns with the protocol 
+// This is how the structs are encoded and alligns with the protocol
 const (
-    separator       = byte(':')
-    integerStart    = byte('i')
-    dictionaryStart = byte('d')
-    listStart       = byte('l')
-    objectEnd       = byte('e')
+	separator       = byte(':')
+	integerStart    = byte('i')
+	dictionaryStart = byte('d')
+	listStart       = byte('l')
+	objectEnd       = byte('e')
 )
 
 func (BEncoding) decodeNumber(buf []byte, pos int) (int, int, error) {
@@ -71,114 +71,123 @@ func (BEncoding) decodeNumber(buf []byte, pos int) (int, int, error) {
 	return n, pos + 1, nil
 }
 
-//form "<len>:<data>".
+// form "<len>:<data>".
 func (BEncoding) decodeString(buf []byte, pos int) (string, int, error) {
-    start := pos
-    for pos < len(buf) && buf[pos] != separator {
-        if buf[pos] < '0' || buf[pos] > '9' {
-            return "", pos, errors.New("invalid digit in string length")
-        }
-        pos++
-    }
-    if pos >= len(buf) {
-        return "", pos, io.ErrUnexpectedEOF
-    }
+	start := pos
+	for pos < len(buf) && buf[pos] != separator {
+		if buf[pos] < '0' || buf[pos] > '9' {
+			return "", pos, errors.New("invalid digit in string length")
+		}
+		pos++
+	}
+	if pos >= len(buf) {
+		return "", pos, io.ErrUnexpectedEOF
+	}
 
-    length, err := strconv.Atoi(string(buf[start:pos]))
-    if err != nil {
-        return "", pos, err
-    }
+	length, err := strconv.Atoi(string(buf[start:pos]))
+	if err != nil {
+		return "", pos, err
+	}
 
-    pos++
-    end := pos + length
-    if end > len(buf) {
-        return "", end, io.ErrUnexpectedEOF
-    }
+	pos++
+	end := pos + length
+	if end > len(buf) {
+		return "", end, io.ErrUnexpectedEOF
+	}
 
-    return string(buf[pos:end]), end, nil
+	return string(buf[pos:end]), end, nil
 }
 
 func (b BEncoding) decodeDictionary(buf []byte, pos int) (map[string]any, int, error) {
-    dict := make(map[string]any)
-    head := pos
-    for head < len(buf) && buf[head] != objectEnd {
-        key, next, err := b.decodeString(buf, head)
-        if err != nil {
-            return nil, next, err
-        }
-        val, next2, err := b.decodeAny(buf, next)
-        if err != nil {
-            return nil, next2, err
-        }
-        dict[key] = val
-        head = next2
-    }
-    if head >= len(buf) || buf[head] != objectEnd {
-        return nil, head, io.ErrUnexpectedEOF
-    }
-    return dict, head + 1, nil
+	dict := make(map[string]any)
+	head := pos
+	for head < len(buf) && buf[head] != objectEnd {
+		key, next, err := b.decodeString(buf, head)
+		if err != nil {
+			return nil, next, err
+		}
+		val, next2, err := b.decodeAny(buf, next)
+		if err != nil {
+			return nil, next2, err
+		}
+		dict[key] = val
+		head = next2
+	}
+	if head >= len(buf) || buf[head] != objectEnd {
+		return nil, head, io.ErrUnexpectedEOF
+	}
+	return dict, head + 1, nil
 }
 
 func (b BEncoding) decodeList(buf []byte, pos int) ([]any, int, error) {
-    var list []any
-    head := pos
-    for head < len(buf) && buf[head] != objectEnd {
-        val, next, err := b.decodeAny(buf, head)
-        if err != nil {
-            return nil, next, err
-        }
-        list = append(list, val)
-        head = next
-    }
-    if head >= len(buf) || buf[head] != objectEnd {
-        return nil, head, io.ErrUnexpectedEOF
-    }
-    return list, head + 1, nil
+	var list []any
+	head := pos
+	for head < len(buf) && buf[head] != objectEnd {
+		val, next, err := b.decodeAny(buf, head)
+		if err != nil {
+			return nil, next, err
+		}
+		list = append(list, val)
+		head = next
+	}
+	if head >= len(buf) || buf[head] != objectEnd {
+		return nil, head, io.ErrUnexpectedEOF
+	}
+	return list, head + 1, nil
 }
 
 func (b BEncoding) decodeAny(buf []byte, pos int) (any, int, error) {
-    if pos >= len(buf) {
-        return nil, pos, io.ErrUnexpectedEOF
-    }
-    switch buf[pos] {
-    case integerStart:
-        return b.decodeNumber(buf, pos+1)
-    case listStart:
-        return b.decodeList(buf, pos+1)
-    case dictionaryStart:
-        return b.decodeDictionary(buf, pos+1)
-    default:
-        if buf[pos] >= '0' && buf[pos] <= '9' {
-            return b.decodeString(buf, pos)
-        }
-    }
-    return nil, pos, errors.New("unknown type prefix")
+	if pos >= len(buf) {
+		return nil, pos, io.ErrUnexpectedEOF
+	}
+	switch buf[pos] {
+	case integerStart:
+		return b.decodeNumber(buf, pos+1)
+	case listStart:
+		return b.decodeList(buf, pos+1)
+	case dictionaryStart:
+		return b.decodeDictionary(buf, pos+1)
+	default:
+		if buf[pos] >= '0' && buf[pos] <= '9' {
+			return b.decodeString(buf, pos)
+		}
+	}
+	return nil, pos, errors.New("unknown type prefix")
 }
 
-// TODO: convert the result into a proper Torrent struct once Torrent is defined.
-func (b BEncoding) Decode(buf []byte) (*Torrent, error) {
-    result, _, err := b.decodeAny(buf, 0)
-    
-    if err != nil {
-        return nil, err
-    }
+func (b BEncoding) Decode(buf []byte) (any, error) {
+	result, _, err := b.decodeAny(buf, 0)
 
-    t, err := NewTorrent(result)
-    
-    if err != nil {
-        return nil, err
-    }
+	if err != nil {
+		return nil, err
+	}
 
-    return t, err
+	return result, nil
 }
 
-func (b BEncoding) DecodeFile(path string) (*Torrent, error) {
-    data, err := os.ReadFile(path)
-    if err != nil {
-        return nil, err
-    }
+func (b BEncoding) DecodeTorrent(buf []byte) (*Torrent, error) {
+	result, _, err := b.decodeAny(buf, 0)
 
-    return b.Decode(data)
+	if err != nil {
+		return nil, err
+	}
+
+	t, err := NewTorrent(result)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return t, err
+}
+
+func (b BEncoding) DecodeTorrentFromFile(path string) (*Torrent, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return b.DecodeTorrent(data)
 }
 
 // TODO Encode can have errors to so we need to check them
@@ -187,8 +196,8 @@ func (b BEncoding) DecodeFile(path string) (*Torrent, error) {
 
 func (BEncoding) encodeNumber(val int) []byte {
 
-    s := string(integerStart) + strconv.Itoa(val) + string(objectEnd)
-    buf := []byte(s)
+	s := string(integerStart) + strconv.Itoa(val) + string(objectEnd)
+	buf := []byte(s)
 
 	return buf
 }
@@ -196,91 +205,88 @@ func (BEncoding) encodeNumber(val int) []byte {
 func (BEncoding) encodeString(val string) []byte {
 
 	s := strconv.Itoa(len(val)) + string(separator) + val
-    buf := []byte(s)
+	buf := []byte(s)
 
 	return buf
 }
 
 func (b BEncoding) encodeList(l []any) []byte {
 
-    buf := []byte{listStart}
-   
-    for _, item := range l {
-        val := b.encodeAny(item)
-		buf = append(buf, val...)
-        buf = append(buf, separator)
-    }
-    
-    buf[len(buf)-1] = objectEnd
+	buf := []byte{listStart}
 
-    return buf
+	for _, item := range l {
+		val := b.encodeAny(item)
+		buf = append(buf, val...)
+		buf = append(buf, separator)
+	}
+
+	buf[len(buf)-1] = objectEnd
+
+	return buf
 }
 
 // Important reminder, the dic have lexicographic order
 func (b BEncoding) encodeDictionary(m map[string]any) []byte {
-    buf := []byte{dictionaryStart}
+	buf := []byte{dictionaryStart}
 
-    keys := make([]string, 0, len(m))
-    for k := range m {
-        keys = append(keys, k)
-    }
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
 
-    sort.Strings(keys)
+	sort.Strings(keys)
 
-    for _, k := range keys {
-        key := b.encodeString(k)
-        val := b.encodeAny(m[k])
-        buf = append(buf, key...)
-        buf = append(buf, val...)
-    }
+	for _, k := range keys {
+		key := b.encodeString(k)
+		val := b.encodeAny(m[k])
+		buf = append(buf, key...)
+		buf = append(buf, val...)
+	}
 
-    buf = append(buf, objectEnd)
-    return buf
+	buf = append(buf, objectEnd)
+	return buf
 }
 
+func (b BEncoding) encodeAny(val any) []byte {
 
-func (b BEncoding)encodeAny(val any) []byte {
+	switch v := val.(type) {
 
-    switch v := val.(type) {
+	case int:
+		return b.encodeNumber(v)
 
-    case int:
-
-        return b.encodeNumber(v)
-
-    case string:
-
-        return b.encodeString(v)
+	case string:
+		return b.encodeString(v)
 
 	case []any:
-
 		return b.encodeList(v)
 
-    case map[string]any:
+	case map[string]any:
+		return b.encodeDictionary(v)
 
-        return b.encodeDictionary(v)
+	default:
+		return nil
 
-    default:
-
-        return nil
-
-    }
-
+	}
 }
 
-func (b BEncoding) Encode(t Torrent) ([]byte, error) {
-    raw, err := t.ToBencodeMap()
-
-    if err != nil {
-        return nil, err
-    }
-
-    encoded := b.encodeAny(raw)
-
-    return encoded, nil
+func (b BEncoding) Encode(t any) ([]byte, error) {
+	return b.encodeAny(t), nil
 }
 
-func (b BEncoding) EncodeFile(name string, t Torrent) error {
-	raw, err := b.Encode(t)
+func (b BEncoding) EncodeTorrent(t Torrent) ([]byte, error) {
+	raw, err := t.ToBencodeMap()
+
+	if err != nil {
+		return nil, err
+	}
+
+	encoded := b.encodeAny(raw)
+
+	return encoded, nil
+}
+
+func (b BEncoding) EncodeTorrentFromFile(name string, t Torrent) error {
+	raw, err := b.EncodeTorrent(t)
 	if err != nil {
 		return err
 	}
