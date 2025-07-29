@@ -1,10 +1,14 @@
 package tracker
 
 import (
+	"encoding/binary"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"time"
 
-	torrent "github.com/dmsRosa6/bittorrent-client/internal/bittorrent"
+	bittorrent "github.com/dmsRosa6/bittorrent-client/internal/bittorrent"
 )
 
 type TrackerEvent int
@@ -30,23 +34,20 @@ type Tracker struct {
 func NewTracker(address string) *Tracker {
 	return &Tracker{
 		Address:             address,
-		lastPeerRequest:     time.Time{},              // zero time = no requests made yet
-		peerRequestInterval: 30 * time.Minute,         // 30 minutes interval, can be configurable
+		lastPeerRequest:     time.Time{},
+		peerRequestInterval: 30 * time.Minute,
 	}
 }
 
-func (t *Tracker) Update(torrent *torrent.Torrent, ev TrackerEvent, id string, port int) {
+func (t *Tracker) Update(torrent *bittorrent.Torrent, ev TrackerEvent, id string, port int) {
 	now := time.Now().UTC()
 
-	// If event is Started and we haven't waited the full interval, skip request
 	if ev == StartedEvent && now.Before(t.lastPeerRequest.Add(t.peerRequestInterval)) {
 		return
 	}
 
-	// Update last request time
 	t.lastPeerRequest = now
 
-	// Build tracker announce URL with query parameters
 	url := fmt.Sprintf("%s?info_hash=%s&peer_id=%s&port=%d&uploaded=%d&downloaded=%d&left=%d&event=%s&compact=1",
 		t.Address,
 		torrent.UrlSafeStringInfohash,
@@ -58,15 +59,53 @@ func (t *Tracker) Update(torrent *torrent.Torrent, ev TrackerEvent, id string, p
 		EventName[ev],
 	)
 
-	t.Request(url)
+	t.request(url)
 }
 
 func (t *Tracker) ResetLastRequest() {
 	t.lastPeerRequest = time.Time{}
 }
 
-func (t *Tracker) Request(url string) {
-	// Your logic to send the request to the tracker goes here
-	// e.g., an HTTP GET request
-}
+func (t *Tracker) request(url string) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return err
+	}
+	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("Error reading response:", err)
+		return err
+	}
+
+	bencode := bittorrent.BEncoding{}
+	m, err := bencode.Decode(body)
+	if err != nil {
+		return err
+	}
+
+	trackerInfo := m.(map[string]any)
+	t.peerRequestInterval, err = time.ParseDuration(trackerInfo["interval"].(string))
+	if err != nil {
+		return err
+	}
+
+	peerInfo := trackerInfo["peers"].([]byte)
+
+	var peers []net.Addr
+
+	for i := 0; i+6 <= len(peerInfo); i += 6 {
+		ip := net.IPv4(peerInfo[i], peerInfo[i+1], peerInfo[i+2], peerInfo[i+3])
+		port := int(binary.BigEndian.Uint16(peerInfo[i+4 : i+6]))
+		addr := &net.TCPAddr{
+			IP:   ip,
+			Port: port,
+		}
+		peers = append(peers, addr)
+	}
+
+	//TODO EVENT THAT SAYS THAT THE TRACKER WAS UPDATED
+	return nil
+}
