@@ -172,7 +172,7 @@ func (b BEncoding) DecodeTorrent(buf []byte) (*Torrent, error) {
 		return nil, err
 	}
 
-	t, err := NewTorrent(result)
+	t, err := NewTorrent(result.(map[string]any))
 
 	if err != nil {
 		return nil, err

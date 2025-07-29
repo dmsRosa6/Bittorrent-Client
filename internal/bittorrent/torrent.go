@@ -112,11 +112,7 @@ func (t Torrent) ToBencodeMap() (map[string]any, error) {
 	return top, nil
 }
 
-func NewTorrent(raw any) (*Torrent, error) {
-	dic, ok := raw.(map[string]any)
-	if !ok {
-		return nil, errors.New("top level must be a dictionary")
-	}
+func NewTorrent(dic map[string]any) (*Torrent, error) {
 
 	t := Torrent{
 		BlockSize: 16 * 1024, // Default
