@@ -9,7 +9,7 @@ func TestDecode(t *testing.T) {
 	data := []byte(`d8:announce33:http://192.168.1.74:6969/announce7:comment17:Comment goes here10:created by25:Transmission/2.92 (14714)13:creation datei1460444420e8:encoding5:UTF-84:infod6:lengthi59616e4:name9:lorem.txt12:piece lengthi32768e6:pieces20:ABCDEFGHIJKLMNOPQRST7:privatei0eee`)
 	bencoding := BEncoding{}
 	
-	torrent, err := bencoding.Decode(data)
+	torrent, err := bencoding.DecodeTorrent(data)
 	if err != nil {
 		t.Fatalf("Decode failed: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestEncode(t *testing.T){
 	
 	bencoding := BEncoding{}
 
-	raw, err := bencoding.Encode(*in)
+	raw, err := bencoding.EncodeTorrent(*in)
 
 	if err != nil {
 		t.Fatalf("Encode failed: %v", err)
@@ -123,12 +123,12 @@ func TestDecodeThenEncode(t *testing.T) {
 
     bencoding := BEncoding{}
 
-    torrent, err := bencoding.Decode(originalData)
+    torrent, err := bencoding.DecodeTorrent(originalData)
     if err != nil {
         t.Fatalf("Decode failed: %v", err)
     }
 
-    encoded, err := bencoding.Encode(*torrent)
+    encoded, err := bencoding.EncodeTorrent(*torrent)
     if err != nil {
         t.Fatalf("Encode failed: %v", err)
     }
