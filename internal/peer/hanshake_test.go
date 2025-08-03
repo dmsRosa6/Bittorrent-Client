@@ -63,7 +63,7 @@ func Test_HandshakeRead_OK(t *testing.T) {
 	copy(buf[1+len(pstr)+8:], infoHash[:])
 	copy(buf[1+len(pstr)+8+20:], peerID[:])
 
-	handshake, err := Read(buf)
+	handshake, err := ReadHandshake(buf)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -93,7 +93,7 @@ func Test_HandshakeRead_Err(t *testing.T) {
 	copy(buf[1+len(pstr)+8:], infoHash[:])
 	copy(buf[1+len(pstr)+8+20:], peerID[:])
 
-	_, err := Read(buf)
+	_, err := ReadHandshake(buf)
 	
 	require.Error(t, err, ErrPstrLenIsZero)
 }
@@ -112,7 +112,7 @@ func Test_HandshakeSerializeThenRead_OK(t *testing.T) {
 	}
 	data := original.Serialize()
 
-	parsed, err := Read(data)
+	parsed, err := ReadHandshake(data)
 	if err != nil {
 		t.Fatalf("ReadHandshake failed: %v", err)
 	}

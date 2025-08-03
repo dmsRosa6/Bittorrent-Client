@@ -26,7 +26,7 @@ func (h *Handshake) Serialize() []byte {
     return buf
 }
 
-func Read(buf []byte) (*Handshake, error) {
+func ReadHandshake(buf []byte) (*Handshake, error) {
     handshake := Handshake{}
 
     if len(buf) == 0 {
