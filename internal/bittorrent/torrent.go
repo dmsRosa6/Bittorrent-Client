@@ -269,7 +269,7 @@ func (t *Torrent) HexStringInfohash() string {
 
 func (t *Torrent) UrlSafeStringInfohash() string {
 	encoded := ""
-	for _, b := range t.infoHash[:20] {
+	for _, b := range t.infoHash[:19] {
 		encoded += fmt.Sprintf("%%%02X", b)
 	}
 

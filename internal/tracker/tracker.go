@@ -29,37 +29,41 @@ type Tracker struct {
 	Address             string
 	lastPeerRequest     time.Time
 	peerRequestInterval time.Duration
+	UpdatePeers		chan<- []net.Addr
 }
 
 func NewTracker(address string) *Tracker {
+	c := make(chan []net.Addr)
 	return &Tracker{
 		Address:             address,
 		lastPeerRequest:     time.Time{},
 		peerRequestInterval: 30 * time.Minute,
+		UpdatePeers:c,
 	}
 }
 
-func (t *Tracker) Update(torrent *bittorrent.Torrent, ev TrackerEvent, id string, port int) {
+func (t *Tracker) Update(torrent *bittorrent.Torrent, ev TrackerEvent, id string, port int) error {
 	now := time.Now().UTC()
 
 	if ev == StartedEvent && now.Before(t.lastPeerRequest.Add(t.peerRequestInterval)) {
-		return
+		return nil
 	}
 
 	t.lastPeerRequest = now
 
 	url := fmt.Sprintf("%s?info_hash=%s&peer_id=%s&port=%d&uploaded=%d&downloaded=%d&left=%d&event=%s&compact=1",
 		t.Address,
-		torrent.UrlSafeStringInfohash,
+		torrent.UrlSafeStringInfohash(),
 		id,
 		port,
-		torrent.Uploaded,
-		torrent.Downloaded,
-		torrent.Left,
+		torrent.Uploaded(),
+		torrent.Downloaded(),
+		torrent.Left(),
 		EventName[ev],
 	)
 
 	t.request(url)
+	return nil
 }
 
 func (t *Tracker) ResetLastRequest() {
@@ -106,6 +110,6 @@ func (t *Tracker) request(url string) error {
 		peers = append(peers, addr)
 	}
 
-	//TODO EVENT THAT SAYS THAT THE TRACKER WAS UPDATED
+	t.UpdatePeers <- peers
 	return nil
 }
