@@ -12,7 +12,3 @@ type FileItem struct{
 func NewFileItem(path string, size int, offset int) FileItem {
 	return FileItem{Path: path, Size: size, Offset: offset}
 }
-
-func (f *FileItem) FormattedSize() string {
-	return bytesToString(f.	Size)
-}

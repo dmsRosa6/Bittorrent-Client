@@ -164,7 +164,7 @@ func (b BEncoding) Decode(buf []byte) (any, error) {
 
 	return result, nil
 }
-
+// TODO i need to change this to have the raw info on a variable to create the torrent with it
 func (b BEncoding) DecodeTorrent(buf []byte) (*Torrent, error) {
 	result, _, err := b.decodeAny(buf, 0)
 

@@ -46,7 +46,7 @@ func ReadHandshake(buf []byte) (*Handshake, error) {
     handshake.Pstr = string(buf[1 : 1+pstrLen])
     curr := 1 + pstrLen
 
-    //reserved 8 bytes
+    //reserved 8 bytes i dont use it but it can be handy later
     curr += 8
 
     copy(handshake.InfoHash[:], buf[curr:curr+20])
