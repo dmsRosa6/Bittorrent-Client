@@ -105,7 +105,6 @@ func (p *Peer) sendHandshake() error {
 }
 
 func (p *Peer) readHandshakeResponse() error {
-	// First read the pstr length
 	lengthBuf := make([]byte, 1)
 	if _, err := p.conn.Read(lengthBuf); err != nil {
 		return err
@@ -116,13 +115,11 @@ func (p *Peer) readHandshakeResponse() error {
 		return fmt.Errorf("invalid pstr length: 0")
 	}
 	
-	// Read the rest of the handshake
-	handshakeBuf := make([]byte, pstrLen+48) // pstr + 8 reserved + 20 info_hash + 20 peer_id
+	handshakeBuf := make([]byte, pstrLen+48)
 	if _, err := p.conn.Read(handshakeBuf); err != nil {
 		return err
 	}
 	
-	// Combine length byte with rest of handshake
 	fullHandshake := append(lengthBuf, handshakeBuf...)
 	
 	handshake, err := ReadHandshake(fullHandshake)
@@ -130,18 +127,15 @@ func (p *Peer) readHandshakeResponse() error {
 		return err
 	}
 	
-	// Verify info hash matches
 	if handshake.InfoHash != p.torrent.InfoHash {
 		return fmt.Errorf("info hash mismatch")
 	}
 	
-	// Store peer ID
 	p.Id = handshake.PeerId
 	
 	return nil
 }
 
-// Message handling functions
 func (p *Peer) SendBitfield() error {
 	if p.conn == nil {
 		return fmt.Errorf("not connected")

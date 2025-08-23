@@ -1,6 +1,7 @@
 package bittorrent
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -164,6 +165,25 @@ func (b BEncoding) Decode(buf []byte) (any, error) {
 
 	return result, nil
 }
+
+func (b BEncoding) findRawInfo(buf []byte) ([]byte, error) {
+	key := []byte("4:info")
+	start := bytes.Index(buf, key)
+	if start == -1 {
+		return nil, fmt.Errorf("info dictionary not found")
+	}
+
+	start += len(key)
+
+	_, end, err := b.decodeAny(buf, start)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf[start:end], nil
+}
+
+
 // TODO i need to change this to have the raw info on a variable to create the torrent with it
 func (b BEncoding) DecodeTorrent(buf []byte) (*Torrent, error) {
 	result, _, err := b.decodeAny(buf, 0)
@@ -172,7 +192,12 @@ func (b BEncoding) DecodeTorrent(buf []byte) (*Torrent, error) {
 		return nil, err
 	}
 
-	t, err := NewTorrent(result.(map[string]any))
+	infoRaw, err := b.findRawInfo(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	t, err := NewTorrent(result.(map[string]any), infoRaw)
 
 	if err != nil {
 		return nil, err

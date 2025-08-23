@@ -56,8 +56,8 @@ func (t *Tracker) Update(torrent *bittorrent.Torrent, ev TrackerEvent, id string
 		torrent.UrlSafeStringInfohash(),
 		id,
 		port,
-		torrent.Uploaded(),
-		torrent.Downloaded(),
+		torrent.Uploaded,
+		torrent.Downloaded,
 		torrent.Left(),
 		EventName[ev],
 	)

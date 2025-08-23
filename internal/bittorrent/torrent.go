@@ -24,6 +24,7 @@ type Torrent struct {
 	PieceSize   int
 	PieceHashes [][]byte
 	InfoHash    [20]byte
+	InfoRaw  	[]byte
 	
 	DownloadDir     string
 	BlockSize       int
@@ -195,14 +196,6 @@ func (t *Torrent) initializeDownloadState() {
 		
 		t.IsBlockAcquired[i] = make([]bool, numBlocks)
 	}
-}
-
-func (t *Torrent) InfoHashHex() string {
-	return hex.EncodeToString(t.InfoHash[:])
-}
-
-func (t *Torrent) InfoHashURLEncoded() string {
-	return url.QueryEscape(string(t.InfoHash[:]))
 }
 
 func (t *Torrent) HexStringInfohash() string {
@@ -486,4 +479,22 @@ func (t *Torrent) ToBencodeMap() (map[string]any, error) {
 
 	top["info"] = info
 	return top, nil
+}
+
+func (t *Torrent) ComputeInfoHash() [20]byte {
+    return sha1.Sum(t.InfoRaw)
+}
+
+func (t *Torrent) InfoHashHex() string {
+    h := t.ComputeInfoHash()
+    return hex.EncodeToString(h[:])
+}
+
+func (t *Torrent) InfoHashURLEncoded() string {
+    h := t.ComputeInfoHash()
+    return url.QueryEscape(string(h[:]))
+}
+
+func (t *Torrent) RawInfo() []byte {
+    return t.InfoRaw
 }
