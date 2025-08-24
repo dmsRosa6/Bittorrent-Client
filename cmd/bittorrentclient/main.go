@@ -24,18 +24,18 @@ func main() {
 			continue
 		}
 
-		input = strings.TrimSpace(input)
-		if input == "" {
+		tokens := strings.Fields(input)
+		if len(tokens) == 0 {
 			continue
 		}
 
-		cmd := r.ParseCommand(input)
+		cmd := r.ParseCommand(tokens[0])
 
 		if cmd == handler.Exit {
 			fmt.Println("Exiting. Bye!")
 			break
 		}
 
-		r.ExecuteCommand(cmd)
+		r.ExecuteCommand(cmd,tokens[1:])
 	}
 }

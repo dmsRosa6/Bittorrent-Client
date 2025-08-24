@@ -16,15 +16,12 @@ type Peer struct {
 	Address  string
 	Protocol string // tcp for BitTorrent (UDP is for tracker communication)
 	LocalId  [20]byte
-	Id       [20]byte
 	torrent  *bittorrent.Torrent
 	conn     net.Conn 
 	
 	// State flags
-	IsDisconnected       bool
 	IsHandshakeSent      bool
 	IsHandshakeReceived  bool
-	IsChokeReceived      bool
 	IsInterestedReceived bool
 	AmChoked            bool
 	AmInterested        bool
@@ -32,14 +29,19 @@ type Peer struct {
 	PeerInterested      bool
 	
 	// Piece tracking
-	HasPieces    []bool 
+	Bitfield []byte
 	IsBlockRequested [][]bool
+	recvBuf []byte
+	sendBuf [][]byte
+
 	
 	// Stats
 	LastActive     time.Time
 	LastKeepAlive  time.Time
 	Uploaded       int64
 	Downloaded     int64
+
+	IsSeeder bool
 }
 
 func NewPeer(address, port string, torrent *bittorrent.Torrent, localId [20]byte) *Peer {
@@ -52,7 +54,7 @@ func NewPeer(address, port string, torrent *bittorrent.Torrent, localId [20]byte
 		torrent:        torrent,
 		AmChoked:       true,  // Start choked
 		PeerChoked:     true,
-		HasPieces:      make([]bool, numPieces),
+		//HasPieces:      make([]bool, numPieces),
 		IsBlockRequested: make([][]bool, numPieces),
 		LastActive:     time.Now(),
 	}
@@ -81,15 +83,6 @@ func (p *Peer) Connect() error {
 	p.IsHandshakeSent = true
 	p.IsHandshakeReceived = true
 	
-	return nil
-}
-
-func (p *Peer) Disconnect() error {
-	if p.conn != nil {
-		p.conn.Close()
-		p.conn = nil
-	}
-	p.IsDisconnected = true
 	return nil
 }
 
@@ -131,7 +124,7 @@ func (p *Peer) readHandshakeResponse() error {
 		return fmt.Errorf("info hash mismatch")
 	}
 	
-	p.Id = handshake.PeerId
+	p.LocalId = handshake.PeerId
 	
 	return nil
 }
@@ -204,13 +197,13 @@ func (p *Peer) createBitfield() []byte {
 	return bitfield
 }
 
-func (p *Peer) createMessage(msgType byte, payload []byte) []byte {
+func (p *Peer) createMessage(msgType messageID, payload []byte) []byte {
 	payloadLen := len(payload)
 	messageLen := payloadLen + 1 // +1 for message type
 	
 	message := make([]byte, 4+messageLen) // 4 bytes for length prefix
 	binary.BigEndian.PutUint32(message[0:4], uint32(messageLen))
-	message[4] = msgType
+	message[4] = byte(msgType)
 	
 	if payload != nil {
 		copy(message[5:], payload)
@@ -253,7 +246,7 @@ func (p *Peer) ReadMessage() (byte, []byte, error) {
 }
 
 // Process incoming messages
-func (p *Peer) HandleMessage(msgType byte, payload []byte) error {
+func (p *Peer) HandleMessage(msgType messageID, payload []byte) error {
 	switch msgType {
 	case MsgChoke:
 		p.AmChoked = true
@@ -279,29 +272,12 @@ func (p *Peer) HandleMessage(msgType byte, payload []byte) error {
 }
 
 func (p *Peer) processBitfield(payload []byte) error {
-	numPieces := len(p.torrent.IsPieceVerified)
-	
-	for i := 0; i < numPieces; i++ {
-		byteIndex := i / 8
-		bitIndex := uint(7 - (i % 8))
-		
-		if byteIndex < len(payload) {
-			p.HasPieces[i] = (payload[byteIndex] & (1 << bitIndex)) != 0
-		}
-	}
+
 	
 	return nil
 }
 
 func (p *Peer) processHave(payload []byte) error {
-	if len(payload) != 4 {
-		return fmt.Errorf("invalid have message length")
-	}
-	
-	pieceIndex := binary.BigEndian.Uint32(payload)
-	if int(pieceIndex) < len(p.HasPieces) {
-		p.HasPieces[pieceIndex] = true
-	}
 	
 	return nil
 }
@@ -322,13 +298,7 @@ func (p *Peer) processCancel(payload []byte) error {
 }
 
 // Utility methods
-func (p *Peer) IsConnected() bool {
-	return p.conn != nil && !p.IsDisconnected
-}
 
 func (p *Peer) HasPiece(pieceIndex int) bool {
-	if pieceIndex < 0 || pieceIndex >= len(p.HasPieces) {
-		return false
-	}
-	return p.HasPieces[pieceIndex]
+	return false
 }
