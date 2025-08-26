@@ -142,14 +142,8 @@ func (r *Handler) ExecuteCommand(command Command, args []string, s session.Sessi
 	case Info:
 		err = r.info(args, s)
 		break
-	case ListSessionTorrents:
-		
-		break
-	case ListTorrents:
-		
-		break
-	case Change:
-
+	case List:
+		err = r.list(s)
 		break
 	case Announce:
 		err = r.announce(args, s)
@@ -234,14 +228,14 @@ func (r *Handler) load(args []string, s session.Session) error {
 		return err
 	}
 
-	s.AddTorrent(torrent)
+	s.SetCurrTorrent(torrent)
 
 	return nil
 }
 
 func (r *Handler) announce(args []string, s session.Session) error {
 
-	retuen nil, nil
+	return nil
 }
 
 // private
