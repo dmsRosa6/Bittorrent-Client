@@ -2,149 +2,259 @@ package commandhandler
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 
-	bt "github.com/dmsRosa6/bittorrent-client/internal/bittorrent"
+	bt "github.com/dmsosa6/bittorrent-client/internal/bittorrent"
+
+	session "github.com/dmsosa6/bittorrent-client/internal/session"
 )
 
 type Command int
+
+type CommandHelp struct {
+	Description string
+	Usage       string
+}
+
+var commandHelp = map[Command]CommandHelp{
+	Info: {
+		"Display information about a torrent",
+		"info <infohash|name>",
+	},
+	Announce: {
+		"Add a torrent from a .torrent file",
+		"announce /path/to/file.torrent",
+	},
+	List: {
+		"List all torrents",
+		"list",
+	},
+	Exit: {
+		"Exit the client",
+		"exit",
+	},
+	Help: {
+		"Show this help message",
+		"help",
+	},
+}
+
 const (
-    Unknown Command = iota
-    Announce
+	Unknown Command = iota
+	Announce
 	Info
-    Trackers
+	List
+	Load
 	Help
-    Exit
+	Exit
 )
 
-var commandArgs = map[Command]int{
-	Unknown : 0,
-	Announce : 1,
-	Info : 0,
-	Trackers : 0,
-	Help : 0,
-	Exit : 0,
+var commandArgs = map[Command][]int{
+	Unknown:  {0},
+	Announce: {1},
+	Info:     {1},
+	List:     {0},
+	Help:     {0, 1},
+	Exit:     {0},
+	Load:     {1},
 }
 
 var commandLookup = map[string]Command{
-    "info":     Info,
-    "trackers": Trackers,
-    "exit":     Exit,
-    "announce": Announce,
-    "help":     Help,
+	"info":     Info,
+	"exit":     Exit,
+	"announce": Announce,
+	"help":     Help,
+	"list":     List,
+	"load":     Load,
+}
+
+type CommandHelp struct {
+	Description string
+	Usage       string
+}
+
+var commandHelp = map[Command]CommandHelp{
+	Info: {
+		"Display information about a torrent",
+		"info <infohash|name>",
+	},
+	Announce: {
+		"Add a torrent from a .torrent file",
+		"announce /path/to/file.torrent",
+	},
+	List: {
+		"List all torrents",
+		"list",
+	},
+	Exit: {
+		"Exit the client",
+		"exit",
+	},
+	Help: {
+		"Show this help message",
+		"help",
+	},
 }
 
 var bencoder = bt.BEncoding{}
 
 func (c Command) String() string {
-    switch c {
-    case Info:
-        return "info"
-    case Trackers:
-        return "trackers"
-    case Exit:
-        return "exit"
+	switch c {
+	case Info:
+		return "info"
+	case List:
+		return "list"
+	case Exit:
+		return "exit"
 	case Announce:
-        return "announce"
-    case Help:
-        return "help"
-    default:
-        return "unknown"
-    }
+		return "announce"
+	case Load:
+		return "load"
+	case Help:
+		return "help"
+	default:
+		return "unknown"
+	}
 }
-
 
 type Handler struct {
 	CurrentTorrent *bt.Torrent
-} 
-
-func (r *Handler) ParseCommand(s string) Command{
-	if cmd, ok := commandLookup[strings.ToLower(s)]; ok {
-        return cmd
-    }
-
-    return Unknown
 }
 
-func (r *Handler) ExecuteCommand(command Command, args []string){
+func (r *Handler) ParseCommand(s string) Command {
+
+	if cmd, ok := commandLookup[strings.ToLower(s)]; ok {
+		return cmd
+	}
+
+	return Unknown
+}
+
+func (r *Handler) ExecuteCommand(command Command, args []string, s session.Session) {
 	var err error
 
 	switch command {
-    case Info:
-	
+	case Info:
+		err = r.info(args, s)
 		break
-	case Trackers:
+	case ListSessionTorrents:
+		
+		break
+	case ListTorrents:
+		
+		break
+	case Change:
 
 		break
-	case Exit:
-    
-		break
 	case Announce:
-        err = r.announce(args)
+		err = r.announce(args, s)
 		break
 	case Help:
-        r.help()
+		err = r.help(args)
 		break
-    default:
-        fmt.Println("Unkown command. type \"help\"")
-    }
+	case Load:
+		err = r.load(args, s)
+		break
+	default:
+		fmt.Println("Unkown command. type \"help\"")
+	}
 
 	if err != nil {
 		handleError(err)
 	}
 }
 
-func (r *Handler) help() {
+func (r *Handler) help(args []string) error {
+	if len(args) == 1 {
+		commandString := args[0]
+		command := r.ParseCommand(commandString)
+
+		if command == Unknown {
+			return fmt.Errorf("%s is a unknown command, type 'help' for a list of commands", commandString)
+		}
+
+		fmt.Printf("%s usage: %s", command, commandHelp[command])
+	}
+
 	fmt.Println("Available commands:")
-	fmt.Println("  info       - Display information about the currently loaded torrent")
-	fmt.Println("  trackers   - List all trackers of the currently loaded torrent")
-	fmt.Println("  announce   - (Optional) Send announce to trackers") 
-	fmt.Println("  help       - Show this help message")
-	fmt.Println("  exit       - Exit the Handler")
-	fmt.Println()
-	fmt.Println("Usage:")
-	fmt.Println("  Type the command name and press Enter, e.g.:")
-	fmt.Println("    info")
-	fmt.Println("    trackers")
-}
-
-// for now this expects a .torrent file, in the future enforce this better or make it so u can create torrents
-func (r *Handler) announce(args []string) error{
-	
-	if len(args) != 1 {
-		return fmt.Errorf("wrong number of arguments: got %d, expected %d", len(args), commandArgs[Announce])
-	}
-
-	path := args[0]
-
-	buf, err := filePathToBytes(path)
-
-	if err != nil{
-		return err
-	}
-
-	torrent, err := bencoder.DecodeTorrent(buf)
-
-	if err != nil{
-		return err
+	for cmd, h := range commandHelp {
+		fmt.Printf("  %-10s - %s\n", cmd.String(), h.Description)
 	}
 
 	return nil
 }
 
+func (r *Handler) list(s session.Session) error {
+	if len(s.Torrents) == 0 {
+		return errors.New("no torrents to show")
+	}
 
-// private 
+	fmt.Println("List of torrents:")
 
-func handleError(error error) {
+	for _, v := range s.Torrents {
+		fmt.Printf(v.HexStringInfohash())
+	}
 
+	return nil
+}
+
+func (r *Handler) info(args []string, s session.Session) error {
+	key := args[0]
+
+	torrent, ok := s.Torrents[key]
+
+	if !ok {
+		return fmt.Errorf("no torrents with infohash: %s\n", key)
+	}
+
+	fmt.Println(torrent.Details())
+
+	return nil
+}
+
+// for now this expects a .torrent file, in the future enforce this better or make it so u can create torrents
+func (r *Handler) load(args []string, s session.Session) error {
+
+	path := args[0]
+
+	buf, err := filePathToBytes(path)
+
+	if err != nil {
+		return err
+	}
+
+	torrent, err := bencoder.DecodeTorrent(buf)
+
+	if err != nil {
+		return err
+	}
+
+	s.AddTorrent(torrent)
+
+	return nil
+}
+
+func (r *Handler) announce(args []string, s session.Session) error {
+
+	retuen nil, nil
+}
+
+// private
+// If needed use a logger, probabily not
+func handleError(err error) {
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR] %v\n", err)
+	}
 }
 
 // this expects a absolute path
 // there is a single os call for the second part
-func filePathToBytes(path string) ([]byte, error){
+func filePathToBytes(path string) ([]byte, error) {
 
 	file, err := os.Open(path)
 
@@ -154,10 +264,10 @@ func filePathToBytes(path string) ([]byte, error){
 	defer file.Close()
 
 	stat, err := file.Stat()
-   	if err != nil {
-      fmt.Println(err)
-      return nil, err
-   	}
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
 
 	bs := make([]byte, stat.Size())
 
@@ -167,4 +277,15 @@ func filePathToBytes(path string) ([]byte, error){
 	}
 
 	return bs, nil
+}
+
+func validateArgs(command Command, args []string) error {
+	expected := commandArgs[command]
+	if !slices.Contains(expected, len(args)) {
+		return fmt.Errorf(
+			"wrong number of arguments for %s: got %d, expected one of %v",
+			command, len(args), expected,
+		)
+	}
+	return nil
 }

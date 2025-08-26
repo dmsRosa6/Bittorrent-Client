@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	handler "github.com/dmsRosa6/bittorrent-client/internal/commandhandler"
+
+	session "github.com/dmsRosa6/bittorrent-client/internal/session"
 )
 
 func main() {
@@ -15,6 +17,8 @@ func main() {
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Println("BitTorrent Client. Type 'help' for commands, 'exit' to quit.")
+
+	s := session.NewSession()
 
 	for {
 		fmt.Print("> ")
@@ -36,6 +40,6 @@ func main() {
 			break
 		}
 
-		r.ExecuteCommand(cmd,tokens[1:])
+		r.ExecuteCommand(cmd, tokens[1:], s)
 	}
 }

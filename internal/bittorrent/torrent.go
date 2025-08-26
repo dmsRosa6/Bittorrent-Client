@@ -8,30 +8,50 @@ import (
 	"math"
 	"net/url"
 	"strings"
+	"time"
+
+	"github.com/dmsRosa6/bittorrent-client/internal/peer"
+	"github.com/dmsRosa6/bittorrent-client/internal/tracker"
 )
 
+type InfoHash [20]byte
+
+type PeerID [20]byte
+
 type Torrent struct {
+	// metadata
 	Announce     string
 	AnnounceList [][]string
 	Comment      string
 	CreatedBy    string
 	CreationDate int
 	Encoding     string
-	
+
 	Name        string
 	IsPrivate   bool
 	Files       []FileItem
 	PieceSize   int
 	PieceHashes [][]byte
-	InfoHash    [20]byte
-	InfoRaw  	[]byte
-	
+	InfoHash    InfoHash
+	InfoRaw     []byte
+
+	// state
 	DownloadDir     string
 	BlockSize       int
-	IsPieceVerified []bool
+	IsPieceVerified []byte
 	IsBlockAcquired [][]bool
-	Downloaded      int
-	Uploaded        int
+	OwnedPieces     []byte
+
+	Downloaded int64
+	Uploaded   int64
+
+	// Swarm
+	Peers    map[string]*peer.Peer
+	Trackers []*tracker.Tracker
+
+	IsPaused    bool
+	IsSeeding   bool
+	CompletedAt time.Time
 }
 
 func NewTorrent(dic map[string]any, rawInfoDict []byte) (*Torrent, error) {
@@ -86,6 +106,7 @@ func NewTorrent(dic map[string]any, rawInfoDict []byte) (*Torrent, error) {
 	if !ok {
 		return nil, errors.New("pieces missing or not a string")
 	}
+
 	if len(pieces)%20 != 0 {
 		return nil, errors.New("pieces string has invalid length")
 	}
@@ -123,17 +144,17 @@ func (t *Torrent) parseFiles(infoDict map[string]any) error {
 			if !ok {
 				return errors.New("file entry is not a dictionary")
 			}
-			
+
 			length, ok := fileDict["length"].(int)
 			if !ok {
 				return errors.New("file length missing or invalid")
 			}
-			
+
 			pathList, ok := fileDict["path"].([]any)
 			if !ok {
 				return errors.New("file path missing or invalid")
 			}
-			
+
 			pathComponents := make([]string, len(pathList))
 			for i, comp := range pathList {
 				if s, ok := comp.(string); ok {
@@ -142,7 +163,7 @@ func (t *Torrent) parseFiles(infoDict map[string]any) error {
 					return errors.New("path component not a string")
 				}
 			}
-			
+
 			t.Files = append(t.Files, FileItem{
 				Size: length,
 				Path: strings.Join(pathComponents, "/"),
@@ -156,7 +177,7 @@ func (t *Torrent) parseFiles(infoDict map[string]any) error {
 	} else {
 		return errors.New("missing both 'files' and 'length' in info dict")
 	}
-	
+
 	return nil
 }
 
@@ -182,18 +203,18 @@ func (t *Torrent) parseAnnounceList(dic map[string]any) error {
 
 func (t *Torrent) initializeDownloadState() {
 	numPieces := len(t.PieceHashes)
-	
+
 	t.IsPieceVerified = make([]bool, numPieces)
 	t.IsBlockAcquired = make([][]bool, numPieces)
 
 	for i := 0; i < numPieces; i++ {
 		pieceSize := t.GetPieceSize(i)
 		numBlocks := (pieceSize + t.BlockSize - 1) / t.BlockSize
-		
+
 		if numBlocks == 0 {
 			numBlocks = 1
 		}
-		
+
 		t.IsBlockAcquired[i] = make([]bool, numBlocks)
 	}
 }
@@ -226,14 +247,14 @@ func (t *Torrent) GetPieceSize(pieceIndex int) int {
 	if pieceIndex < 0 || pieceIndex >= t.PiecesCount() {
 		return 0
 	}
-	
+
 	if pieceIndex == t.PiecesCount()-1 {
 		remainder := t.TotalSize() % t.PieceSize
 		if remainder != 0 {
 			return remainder
 		}
 	}
-	
+
 	return t.PieceSize
 }
 
@@ -241,21 +262,21 @@ func (t *Torrent) GetBlockSize(pieceIndex, blockIndex int) int {
 	if pieceIndex < 0 || pieceIndex >= t.PiecesCount() {
 		return 0
 	}
-	
+
 	pieceSize := t.GetPieceSize(pieceIndex)
 	numBlocks := (pieceSize + t.BlockSize - 1) / t.BlockSize
-	
+
 	if blockIndex < 0 || blockIndex >= numBlocks {
 		return 0
 	}
-	
+
 	if blockIndex == numBlocks-1 {
 		remainder := pieceSize % t.BlockSize
 		if remainder != 0 {
 			return remainder
 		}
 	}
-	
+
 	return t.BlockSize
 }
 
@@ -263,14 +284,14 @@ func (t *Torrent) Progress() float64 {
 	if len(t.IsPieceVerified) == 0 {
 		return 0.0
 	}
-	
+
 	verified := 0
 	for _, v := range t.IsPieceVerified {
 		if v {
 			verified++
 		}
 	}
-	
+
 	return float64(verified) / float64(len(t.IsPieceVerified))
 }
 
@@ -306,29 +327,29 @@ func (t *Torrent) Validate() error {
 	if t.Announce == "" {
 		return errors.New("announce URL is required")
 	}
-	
+
 	if t.Name == "" {
 		return errors.New("torrent name is required")
 	}
-	
+
 	if t.PieceSize <= 0 {
 		return errors.New("piece size must be positive")
 	}
-	
+
 	if len(t.PieceHashes) == 0 {
 		return errors.New("torrent must have at least one piece")
 	}
-	
+
 	if len(t.Files) == 0 {
 		return errors.New("torrent must have at least one file")
 	}
-	
+
 	for i, hash := range t.PieceHashes {
 		if len(hash) != 20 {
 			return fmt.Errorf("piece %d hash has invalid length %d, expected 20", i, len(hash))
 		}
 	}
-	
+
 	return nil
 }
 
@@ -338,11 +359,11 @@ func (t *Torrent) IsMultiFile() bool {
 
 func (t *Torrent) GetAllTrackers() []string {
 	trackers := []string{t.Announce}
-	
+
 	for _, tier := range t.AnnounceList {
 		trackers = append(trackers, tier...)
 	}
-	
+
 	return trackers
 }
 
@@ -359,20 +380,20 @@ func formatBytes(bytes int) string {
 	if bytes < unit {
 		return fmt.Sprintf("%d B", bytes)
 	}
-	
+
 	div, exp := int(unit), 0
 	for n := bytes / unit; n >= unit; n /= unit {
 		div *= unit
 		exp++
 	}
-	
+
 	return fmt.Sprintf("%.1f %ciB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
 func (t *Torrent) MarkPieceComplete(pieceIndex int) {
 	if pieceIndex >= 0 && pieceIndex < len(t.IsPieceVerified) {
 		t.IsPieceVerified[pieceIndex] = true
-		
+
 		if pieceIndex < len(t.IsBlockAcquired) {
 			for i := range t.IsBlockAcquired[pieceIndex] {
 				t.IsBlockAcquired[pieceIndex][i] = true
@@ -393,13 +414,13 @@ func (t *Torrent) IsPieceComplete(pieceIndex int) bool {
 	if pieceIndex < 0 || pieceIndex >= len(t.IsBlockAcquired) {
 		return false
 	}
-	
+
 	for _, hasBlock := range t.IsBlockAcquired[pieceIndex] {
 		if !hasBlock {
 			return false
 		}
 	}
-	
+
 	return true
 }
 
@@ -482,19 +503,27 @@ func (t *Torrent) ToBencodeMap() (map[string]any, error) {
 }
 
 func (t *Torrent) ComputeInfoHash() [20]byte {
-    return sha1.Sum(t.InfoRaw)
+	return sha1.Sum(t.InfoRaw)
 }
 
 func (t *Torrent) InfoHashHex() string {
-    h := t.ComputeInfoHash()
-    return hex.EncodeToString(h[:])
+	h := t.ComputeInfoHash()
+	return hex.EncodeToString(h[:])
 }
 
 func (t *Torrent) InfoHashURLEncoded() string {
-    h := t.ComputeInfoHash()
-    return url.QueryEscape(string(h[:]))
+	h := t.ComputeInfoHash()
+	return url.QueryEscape(string(h[:]))
 }
 
 func (t *Torrent) RawInfo() []byte {
-    return t.InfoRaw
+	return t.InfoRaw
+}
+
+func (t *Torrent) String() string {
+	return "name blank for now. implement this"
+}
+
+func (t *Torrent) Details() string {
+	return "details blank for now. implement this"
 }
